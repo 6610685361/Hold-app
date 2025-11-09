@@ -25,12 +25,3 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"Profile of {self.user.username}"
-
-class Food(models.Model):
-    foodID = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=100)
-    imageURL = models.URLField(blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-
-    def __str__(self):
-        return self.name
