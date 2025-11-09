@@ -12,7 +12,6 @@ class CustomUserAdmin(UserAdmin):
     ordering = ("username",)
 
 
-# ต้อง unregister ของเดิมก่อน
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 

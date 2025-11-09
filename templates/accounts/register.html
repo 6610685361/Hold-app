@@ -2,22 +2,60 @@
 {% block title %}Register{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-center min-h-[70vh]">
-  <div class="w-full max-w-md bg-white p-6 rounded-xl shadow">
-    <h1 class="text-2xl font-semibold mb-4">Register</h1>
 
+<style>
+  
+    /* input styling */
+    input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        margin-top: 6px;
+        margin-bottom: 14px;
+        font-size: 15px;
+    }
+
+    input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        outline: none;
+    }
+</style>
+
+
+<div class="flex items-center justify-center min-h-[75vh] bg-gray-50 px-4">
+
+  <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-lg border border-gray-100">
+
+    <!-- หัวข้อ -->
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-bold text-gray-900">สมัครสมาชิก</h1>
+      <p class="text-gray-500 text-sm mt-1">สร้างบัญชีใหม่เพื่อเริ่มต้นใช้งาน</p>
+    </div>
+
+    <!-- Form -->
     <form method="POST" class="space-y-4">
       {% csrf_token %}
-      {{ form.as_p }}
-      <button class="w-full bg-gray-900 text-white py-2 rounded-lg hover:bg-gray-700 transition">
+
+      <div class="space-y-1 leading-[1.8]">
+        {{ form.as_p }}
+      </div>
+
+      <!-- ปุ่ม -->
+      <button class="w-full bg-gray-900 text-white py-2.5 rounded-lg hover:bg-gray-700 transition font-medium shadow">
         ลงทะเบียน
       </button>
     </form>
 
-    <p class="text-center mt-4 text-gray-600 text-sm">
+    <p class="text-center mt-6 text-gray-600 text-sm">
       มีบัญชีแล้ว?
-      <a href="{% url 'login' %}" class="text-blue-600 hover:underline">เข้าสู่ระบบ</a>
+      <a href="{% url 'login' %}" class="text-blue-600 hover:underline font-medium">
+        เข้าสู่ระบบ
+      </a>
     </p>
+
   </div>
 </div>
+
 {% endblock %}
