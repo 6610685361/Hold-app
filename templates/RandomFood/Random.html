@@ -1,47 +1,50 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Random Food | Hold{% endblock %}
-
-{% block content %}
-<div class="flex flex-col items-center justify-center min-h-[80vh]">
-  <h1 class="text-3xl font-bold mb-6">Swipe to Choose Your Food 🍽️</h1>
-
-  {% if food %}
-  <div id="food-card"
-    class="relative w-80 h-[460px] bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col items-center justify-center select-none transition-transform duration-300 ease-in-out">
-
-    <span class="status like absolute top-4 left-4 text-3xl font-bold text-green-500 opacity-0">LIKE</span>
-    <span class="status nope absolute top-4 right-4 text-3xl font-bold text-red-500 opacity-0">NOPE</span>
-
-    <img src="{{ food.imageURL }}" alt="{{ food.name }}" class="w-full h-[70%] object-cover">
-
-    <div class="p-4 text-center">
-      <h2 class="text-xl font-semibold mb-2 text-gray-800">{{ food.name }}</h2>
-      <p class="text-gray-600 text-sm">{{ food.description }}</p>
-    </div>
-  </div>
-  {% else %}
-  <p class="text-gray-600 text-lg mt-10">No food found in the database. Please add one in the admin panel.</p>
-  {% endif %}
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-<script>
-  const card = document.getElementById('food-card');
-  if (card) {
-    const hammer = new Hammer(card);
-    hammer.on("swipeleft swiperight", function (ev) {
-      if (ev.type === "swipeleft") {
-        window.location.reload(); // reload random food
-      } else if (ev.type === "swiperight") {
-        window.location.href = "/you-chose/{{ food.foodID }}/";
-      }
-    });
-  }
-</script>
+{% block title %}
+  Random Food | Hold
 {% endblock %}
 
+{% block content %}
+  <div class="flex flex-col items-center justify-center min-h-[80vh]">
+    <h1 class="text-3xl font-bold mb-6">Swipe to Choose Your Food 🍽️</h1>
 
+    {% if food %}
+      <div id="food-card" class="relative w-80 h-[460px] bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col items-center justify-center select-none transition-transform duration-300 ease-in-out">
+        <span class="status like absolute top-4 left-4 text-3xl font-bold text-green-500 opacity-0">LIKE</span>
+        <span class="status nope absolute top-4 right-4 text-3xl font-bold text-red-500 opacity-0">NOPE</span>
 
+        <img src="{{ food.imageURL }}" alt="{{ food.name }}" class="w-full h-[70%] object-cover" />
 
+        <div class="p-4 text-center">
+          <h2 class="text-xl font-semibold mb-2 text-gray-800">{{ food.name }}</h2>
+          <p class="text-gray-600 text-sm">{{ food.description }}</p>
+        </div>
+      </div>
+    {% else %}
+      <p class="text-gray-600 text-lg mt-10">No food found in the database. Please add one in the admin panel.</p>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script>
+    const card = document.getElementById('food-card')
+    if (card) {
+      const hammer = new Hammer(card)
+      hammer.on('swipeleft swiperight', function (ev) {
+        if (ev.type === 'swipeleft') {
+          // reload using the named URL (avoid absolute '/')
+          window.location.href = "{% url 'random_food_page' %}"
+        } else if (ev.type === 'swiperight') {
+          // go to the you-chose page using URL tag so it's always correct
+          window.location.href = "{% url 'you_chose_this' food.foodID %}"
+        }
+      })
+    
+      // keyboard fallback for testing
+      card.addEventListener('click', () => {
+        window.location.href = "{% url 'you_chose_this' food.foodID %}"
+      })
+    }
+  </script>
+{% endblock %}
