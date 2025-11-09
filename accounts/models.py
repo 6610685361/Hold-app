@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
-
+from RandomFood.models import Food
 
 # Custom Admin สำหรับ User
 class CustomUserAdmin(UserAdmin):
@@ -12,6 +12,7 @@ class CustomUserAdmin(UserAdmin):
     ordering = ("username",)
 
 
+# ต้อง unregister ของเดิมก่อน
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 
@@ -22,6 +23,7 @@ class UserProfile(models.Model):
     full_name = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     bio = models.TextField(blank=True)
+    favorites = models.ManyToManyField(Food, blank=True)
 
     def __str__(self):
         return f"Profile of {self.user.username}"
@@ -34,3 +36,4 @@ class Food(models.Model):
 
     def __str__(self):
         return self.name
+    

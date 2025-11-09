@@ -19,7 +19,11 @@ def random_food(request):
 
 
 def random_food_page(request):
-    return render(request, "RandomFood/Random.html")
+    foods = list(Food.objects.all())
+    if not foods:
+        return render(request, "RandomFood/Random.html", {"food": None})
+    food = random.choice(foods)
+    return render(request, "RandomFood/Random.html", {"food": food})
 
 def you_chose_this(request, food_id):
     food = get_object_or_404(Food, foodID=food_id)
