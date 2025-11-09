@@ -1,91 +1,47 @@
+{% extends "base.html" %}
 {% load static %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍽️ What Should I Eat?</title>
-    <style>
-        body {
-            font-family: "Poppins", sans-serif;
-            background: linear-gradient(135deg, #ffecd2, #fcb69f);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin: 0;
-        }
-        h1 {
-            font-size: 2rem;
-            color: #333;
-            margin-bottom: 20px;
-        }
-        button {
-            background: #ff7e5f;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 1rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-        button:hover {
-            background: #eb5757;
-        }
-        #result {
-            margin-top: 30px;
-            text-align: center;
-            max-width: 400px;
-            background: rgba(255, 255, 255, 0.85);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-        #result img {
-            width: 100%;
-            border-radius: 12px;
-        }
-        #food-name {
-            font-size: 1.5rem;
-            margin-top: 10px;
-        }
-        #food-desc {
-            color: #555;
-            font-size: 1rem;
-            margin-top: 8px;
-        }
-    </style>
-</head>
-<body>
+{% block title %}Random Food | Hold{% endblock %}
 
-    <h1>🍜 What Should I Eat Today?</h1>
-    <button id="randomButton">🎲 Random Food</button>
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[80vh]">
+  <h1 class="text-3xl font-bold mb-6">Swipe to Choose Your Food 🍽️</h1>
 
-    <div id="result">
-        <p>Click the button to find your next meal!</p>
+  {% if food %}
+  <div id="food-card"
+    class="relative w-80 h-[460px] bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col items-center justify-center select-none transition-transform duration-300 ease-in-out">
+
+    <span class="status like absolute top-4 left-4 text-3xl font-bold text-green-500 opacity-0">LIKE</span>
+    <span class="status nope absolute top-4 right-4 text-3xl font-bold text-red-500 opacity-0">NOPE</span>
+
+    <img src="{{ food.imageURL }}" alt="{{ food.name }}" class="w-full h-[70%] object-cover">
+
+    <div class="p-4 text-center">
+      <h2 class="text-xl font-semibold mb-2 text-gray-800">{{ food.name }}</h2>
+      <p class="text-gray-600 text-sm">{{ food.description }}</p>
     </div>
+  </div>
+  {% else %}
+  <p class="text-gray-600 text-lg mt-10">No food found in the database. Please add one in the admin panel.</p>
+  {% endif %}
+</div>
 
-    <script>
-        document.getElementById("randomButton").addEventListener("click", async () => {
-            const res = await fetch("/api/random-food/");
-            const food = await res.json();
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script>
+  const card = document.getElementById('food-card');
+  if (card) {
+    const hammer = new Hammer(card);
+    hammer.on("swipeleft swiperight", function (ev) {
+      if (ev.type === "swipeleft") {
+        window.location.reload(); // reload random food
+      } else if (ev.type === "swiperight") {
+        window.location.href = "/you-chose/{{ food.foodID }}/";
+      }
+    });
+  }
+</script>
+{% endblock %}
 
-            const resultDiv = document.getElementById("result");
 
-            if (food.error) {
-                resultDiv.innerHTML = `<p>${food.error}</p>`;
-            } else {
-                resultDiv.innerHTML = `
-                    <img src="${food.imageURL}" alt="${food.name}">
-                    <div id="food-name">${food.name}</div>
-                    <div id="food-desc">${food.description || "No description available."}</div>
-                `;
-            }
-        });
-    </script>
 
-</body>
-</html>
+
