@@ -1,9 +1,288 @@
 {% extends "base.html" %}
-
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<div class="py-6">
-    <h1 class="text-2xl text-center font-semibold mb-4">Welcome 👋</h1>
+<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr]">
+  <!-- ซ้าย: Favorites -->
+  <aside class="border rounded-xl bg-white p-3 h-[560px] overflow-hidden self-center">
+    <h3 class="font-semibold mb-2">Favorites</h3>
+    <ul id="favList" class="space-y-2 h-full overflow-y-auto pr-2"></ul>
+  </aside>
+
+  <!-- กลาง -->
+  <section class="flex flex-col items-center justify-center relative">
+    <form>{% csrf_token %}</form>
+
+    <!-- กองการ์ด -->
+    <div id="stack" class="relative w-[420px] max-w-[92vw] h-[560px]"></div>
+
+    <!-- ปุ่ม -->
+    <div class="flex gap-3 w-[420px] max-w-[92vw] mt-3">
+      <button type="button" id="btnSkip" class="flex-1 py-2.5 rounded-lg bg-red-500 text-white">Nah</button>
+      <button type="button" id="btnFav"  class="flex-1 py-2.5 rounded-lg bg-yellow-400 text-white">❤️ Favorite</button>
+      <button type="button" id="btnLike" class="flex-1 py-2.5 rounded-lg bg-green-600 text-white">Take it</button>
+    </div>
+
+    <!-- Overlay (ขึ้นเฉพาะ Take it) -->
+    <div id="resultOverlay"
+         class="fixed inset-0 hidden opacity-0 transition-opacity duration-300
+                flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-[9999] p-6">
+      <div class="flex flex-col items-center justify-center text-center">
+        <img id="resultImage" src=""
+             class="w-[420px] h-[300px] max-w-[90vw] max-h-[70vh]
+                    object-cover rounded-2xl shadow-2xl mb-5 border-4 border-white/40
+                    transform transition-transform duration-300 scale-95" />
+        <div id="resultText" class="text-white text-xl font-semibold mb-6"></div>
+        <div class="flex gap-5">
+          <button id="overlayFav" class="px-6 py-2.5 rounded-lg bg-yellow-400 text-black font-semibold shadow-md">❤️ Favorite</button>
+          <button id="overlayOK"  class="px-6 py-2.5 rounded-lg bg-green-600  text-white font-semibold shadow-md">OK</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
+
+<script>
+const API_BATCH  = '/api/dishes/batch/?n=3';
+const API_ONE    = '/api/dishes/batch/?n=1';
+const API_CHOICE = '/api/choices/';
+const API_FAV    = '/api/favorites/';
+
+const stackEl = document.getElementById('stack');
+const btnLike = document.getElementById('btnLike');
+const btnSkip = document.getElementById('btnSkip');
+const btnFav  = document.getElementById('btnFav');
+const favList = document.getElementById('favList');
+
+const overlay     = document.getElementById('resultOverlay');
+const resultImage = document.getElementById('resultImage');
+const resultText  = document.getElementById('resultText');
+const overlayFav  = document.getElementById('overlayFav');
+const overlayOK   = document.getElementById('overlayOK');
+
+let stack = [];
+let locking = false;
+let favLock = false; // กันกด ❤️ รัว
+
+function csrf() {
+  return document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '';
+}
+const topId   = () => (stack[0]?.id ?? null);   // id ใบบนสุด
+const topCard = () => (stack[0] || null);        // object ใบบนสุด
+
+/* ===== Load data ===== */
+async function loadBatch() {
+  const r = await fetch(API_BATCH, {credentials:'include'});
+  const data = await r.json();
+  stack = data.cards || [];
+  renderStack();
+}
+async function refreshOne() {
+  const r = await fetch(API_ONE, {credentials:'include'});
+  const data = await r.json();
+  if (data.cards && data.cards.length) stack.push(data.cards[0]);
+  renderStack();
+}
+async function loadFavorites() {
+  const r = await fetch(API_FAV, {credentials:'include'});
+  const data = await r.json();
+  favList.innerHTML = '';
+  (data.favorites || []).forEach(f => {
+    const li = document.createElement('li');
+    li.className = "flex items-center gap-3 border rounded-lg p-2";
+    li.innerHTML = `
+      <img src="${f.image_url||''}" class="w-12 h-12 rounded object-cover" />
+      <div class="leading-tight">
+        <div class="font-medium">${f.name||''}</div>
+        <div class="text-xs text-gray-600">${f.cuisine||''}</div>
+      </div>`;
+    favList.appendChild(li);
+  });
+}
+
+/* ===== Render stack ===== */
+function renderStack() {
+  stackEl.innerHTML = '';
+  stack.slice(0,3).forEach((card, idx) => {
+    const el = createCard(card);
+    el.style.zIndex = (100 - idx);
+    el.style.transform = `translateY(${idx*6}px) scale(${1 - idx*0.03})`;
+    stackEl.appendChild(el);
+    if (idx === 0) attachDrag(el, card.id); // ผูก drag เฉพาะใบบนสุด
+  });
+  if (!stack.length) {
+    stackEl.innerHTML = `<div class="grid place-items-center w-full h-full rounded-xl border bg-white text-gray-600">หมดแล้ว 🎉</div>`;
+  }
+}
+
+/* ===== Card element ===== */
+function createCard(card) {
+  const el = document.createElement('div');
+  el.className = "absolute inset-0 rounded-2xl overflow-hidden bg-white shadow-2xl select-none transition";
+  el.innerHTML = `
+    <img src="${card.image_url||''}" class="absolute inset-0 w-full h-full object-cover" />
+    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+    <!-- Badge จางระหว่างลาก -->
+    <div class="absolute top-4 right-4 like badge px-3 py-1.5 font-bold text-green-700 border-2 border-green-700 rounded-xl bg-white/70 backdrop-blur opacity-0 transition-opacity">Take it</div>
+    <div class="absolute top-4 left-4  skip badge px-3 py-1.5 font-bold text-red-700   border-2 border-red-700   rounded-xl bg-white/70 backdrop-blur opacity-0 transition-opacity">Nah</div>
+    <div class="absolute bottom-0 p-4 text-white">
+      <h2 class="text-xl font-semibold">${card.name||''}</h2>
+      <p class="opacity-90">${card.cuisine||''}</p>
+    </div>`;
+  return el;
+}
+
+/* ===== Overlay helpers ===== */
+function showResult(card) {
+  resultImage.src = card.image_url || '';
+  resultText.textContent = `${card.name || ''} — ${card.cuisine || ''}`;
+  overlay.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    overlay.style.opacity = '1';
+    resultImage.classList.remove('scale-95');
+    resultImage.classList.add('scale-100');
+  });
+
+  // ตั้ง handler ใหม่ทุกครั้ง (onclick จะทับของเก่า ⇒ ไม่ซ้อน)
+  overlayFav.onclick = async () => {
+    await addFavorite(card.id);
+    await loadFavorites();
+    hideOverlay();
+  };
+  overlayOK.onclick = hideOverlay;
+}
+function hideOverlay() {
+  overlay.style.opacity = '0';
+  resultImage.classList.remove('scale-100');
+  resultImage.classList.add('scale-95');
+  setTimeout(() => overlay.classList.add('hidden'), 300);
+}
+
+/* ===== Drag / Swipe ===== */
+function attachDrag(cardEl, dishId) {
+  let startX = 0, dx = 0, dragging = false;
+  const likeBadge = cardEl.querySelector('.like');
+  const skipBadge = cardEl.querySelector('.skip');
+
+  const start = x => { if (locking) return; dragging = true; startX = x; cardEl.style.transition = 'none'; };
+  const move  = x => {
+    if (!dragging) return;
+    dx = x - startX;
+    cardEl.style.transform = `translateX(${dx}px) rotate(${dx/18}deg)`;
+    const t = Math.min(1, Math.abs(dx) / 120);
+    likeBadge.style.opacity = dx > 0 ? t : 0;
+    skipBadge.style.opacity  = dx < 0 ? t : 0;
+  };
+  const end   = async () => {
+    if (!dragging) return;
+    dragging = false;
+    cardEl.style.transition = 'transform .18s ease';
+    const cardNow = topCard();
+    if (dx > 120) {
+      // ปัดขวา ⇒ โชว์ overlay
+      await handleLike(dishId, 'translateX(520px) rotate(18deg)');
+      if (cardNow) showResult(cardNow);
+    } else if (dx < -120) {
+      // ปัดซ้าย ⇒ ข้ามเฉย ๆ
+      await handleSkip(dishId, 'translateX(-520px) rotate(-18deg)');
+    } else {
+      cardEl.style.transform = 'translateX(0) rotate(0)';
+      likeBadge.style.opacity = 0;
+      skipBadge.style.opacity  = 0;
+    }
+    dx = 0;
+  };
+
+  cardEl.addEventListener('mousedown', e => start(e.clientX));
+  window.addEventListener('mousemove', e => move(e.clientX));
+  window.addEventListener('mouseup', end);
+  cardEl.addEventListener('touchstart', e => start(e.touches[0].clientX), {passive:true});
+  cardEl.addEventListener('touchmove',  e => move(e.touches[0].clientX),  {passive:true});
+  cardEl.addEventListener('touchend', end);
+
+  // ❌ อย่าตั้ง btnFav ในนี้ เพื่อกัน handler ซ้อน
+}
+
+/* ===== ปุ่มล่าง: อ่าน id สดทุกครั้ง ===== */
+btnLike.onclick = () => {
+  const id = topId(), cardNow = topCard();
+  if (!id) return;
+  handleLike(id, 'translateX(520px) rotate(18deg)')
+    .then(() => { if (cardNow) showResult(cardNow); });
+};
+btnSkip.onclick = () => {
+  const id = topId();
+  if (!id) return;
+  handleSkip(id, 'translateX(-520px) rotate(-18deg)');
+};
+btnFav.onclick  = () => {
+  const id = topId();
+  if (!id) return;
+  addFavorite(id);
+};
+
+/* ===== Like / Skip ===== */
+async function handleLike(dishId, transformOut) {
+  if (locking) return; locking = true;
+  const topEl = stackEl.querySelector('.absolute.inset-0');
+  if (topEl) { topEl.style.transition = 'transform .18s ease'; topEl.style.transform = transformOut; }
+
+  await fetch(API_CHOICE, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-CSRFToken': csrf()},
+    credentials: 'include',
+    body: JSON.stringify({ dish_id: Number(dishId), action: 'LIKE' })
+  });
+
+  stack.shift();         // เอาใบบนสุดออก
+  await refreshOne();    // เติมใบใหม่ให้คง 3
+  locking = false;
+}
+async function handleSkip(dishId, transformOut) {
+  if (locking) return; locking = true;
+  const topEl = stackEl.querySelector('.absolute.inset-0');
+  if (topEl) { topEl.style.transition = 'transform .18s ease'; topEl.style.transform = transformOut; }
+
+  await fetch(API_CHOICE, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-CSRFToken': csrf()},
+    credentials: 'include',
+    body: JSON.stringify({ dish_id: Number(dishId), action: 'SKIP' })
+  });
+
+  stack.shift();
+  await refreshOne();
+  locking = false;
+}
+
+/* ===== Favorites (กันกดซ้ำ + บังคับส่ง id เดียว) ===== */
+async function addFavorite(dishId) {
+  if (favLock) return;
+  if (!dishId) return;
+  favLock = true;
+
+  try {
+    await fetch(API_FAV, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+      credentials: 'include',
+      body: JSON.stringify({ dish_id: Number(dishId) })
+    });
+    await loadFavorites();
+
+    // toast
+    const toast = document.createElement('div');
+    toast.className = "fixed bottom-6 left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-5 py-2 rounded-lg shadow font-medium animate-bounce z-[10000]";
+    toast.textContent = "💛 Added to Favorites!";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 1200);
+  } finally {
+    favLock = false;
+  }
+}
+
+/* init */
+loadBatch();
+loadFavorites();
+</script>
 {% endblock %}
