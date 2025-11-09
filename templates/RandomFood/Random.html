@@ -1,0 +1,91 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍽️ What Should I Eat?</title>
+    <style>
+        body {
+            font-family: "Poppins", sans-serif;
+            background: linear-gradient(135deg, #ffecd2, #fcb69f);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+        h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #ff7e5f;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background: #eb5757;
+        }
+        #result {
+            margin-top: 30px;
+            text-align: center;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.85);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        #result img {
+            width: 100%;
+            border-radius: 12px;
+        }
+        #food-name {
+            font-size: 1.5rem;
+            margin-top: 10px;
+        }
+        #food-desc {
+            color: #555;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🍜 What Should I Eat Today?</h1>
+    <button id="randomButton">🎲 Random Food</button>
+
+    <div id="result">
+        <p>Click the button to find your next meal!</p>
+    </div>
+
+    <script>
+        document.getElementById("randomButton").addEventListener("click", async () => {
+            const res = await fetch("/api/random-food/");
+            const food = await res.json();
+
+            const resultDiv = document.getElementById("result");
+
+            if (food.error) {
+                resultDiv.innerHTML = `<p>${food.error}</p>`;
+            } else {
+                resultDiv.innerHTML = `
+                    <img src="${food.imageURL}" alt="${food.name}">
+                    <div id="food-name">${food.name}</div>
+                    <div id="food-desc">${food.description || "No description available."}</div>
+                `;
+            }
+        });
+    </script>
+
+</body>
+</html>
