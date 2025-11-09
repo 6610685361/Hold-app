@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Random Food{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr]">
+  <!-- Favorites sidebar -->
+  <aside class="border rounded-xl bg-white p-3 h-[560px] overflow-hidden self-center">
+    <h3 class="font-semibold mb-2">Favorites</h3>
+    <ul id="favList" class="space-y-2 h-full overflow-y-auto pr-2"></ul>
+  </aside>
+
+  <!-- Main swipe section -->
+  <section class="flex flex-col items-center justify-center relative">
+    <form>{% csrf_token %}</form>
+    <div id="stack" class="relative w-[420px] max-w-[92vw] h-[560px]"></div>
+
+    <div class="flex gap-3 w-[420px] max-w-[92vw] mt-3">
+      <button type="button" id="btnSkip" class="flex-1 py-2.5 rounded-lg bg-red-500 text-white">Nah</button>
+      <button type="button" id="btnFav"  class="flex-1 py-2.5 rounded-lg bg-yellow-400 text-white">❤️ Favorite</button>
+      <button type="button" id="btnLike" class="flex-1 py-2.5 rounded-lg bg-green-600 text-white">Take it</button>
+    </div>
+
+    <!-- Overlay -->
+    <div id="resultOverlay"
+         class="fixed inset-0 hidden opacity-0 transition-opacity duration-300
+                flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-[9999] p-6">
+      <div class="flex flex-col items-center justify-center text-center">
+        <img id="resultImage" src=""
+             class="w-[420px] h-[300px] max-w-[90vw] max-h-[70vh]
+                    object-cover rounded-2xl shadow-2xl mb-5 border-4 border-white/40
+                    transform transition-transform duration-300 scale-95" />
+        <div id="resultText" class="text-white text-xl font-semibold mb-6"></div>
+        <div class="flex gap-5">
+          <button id="overlayFav" class="px-6 py-2.5 rounded-lg bg-yellow-400 text-black font-semibold shadow-md">❤️ Favorite</button>
+          <button id="overlayOK"  class="px-6 py-2.5 rounded-lg bg-green-600 text-white font-semibold shadow-md">OK</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const API_BATCH     = "{% url 'api_random_food_batch' %}";
+const API_FAV       = "{% url 'api_add_favorite' %}";
+const API_GET_FAVS  = "{% url 'api_get_favorites' %}";
+
+const stackEl       = document.getElementById('stack');
+const btnLike       = document.getElementById('btnLike');
+const btnSkip       = document.getElementById('btnSkip');
+const btnFav        = document.getElementById('btnFav');
+const favList       = document.getElementById('favList');
+
+const overlay       = document.getElementById('resultOverlay');
+const resultImage   = document.getElementById('resultImage');
+const resultText    = document.getElementById('resultText');
+const overlayFav    = document.getElementById('overlayFav');
+const overlayOK     = document.getElementById('overlayOK');
+
+let stack = [];
+let offset = 0;
+let doneLoading = false;
+const VISIBLE_CARDS = 3;
+
+/* ===== Helpers ===== */
+function csrf() {
+  return document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '';
+}
+const topCard = () => stack[0] || null;
+
+/* ===== Favorites sidebar ===== */
+function addToSidebar(card) {
+  if (!card) return;
+  if (document.getElementById(`fav-${card.id}`)) return;
+  const li = document.createElement('li');
+  li.id = `fav-${card.id}`;
+  li.className = "flex items-center gap-2 border-b pb-1";
+  li.innerHTML = `
+    <img src="${card.image_url||''}" class="w-10 h-10 rounded object-cover border" />
+    <span class="text-sm font-medium truncate">${card.name}</span>`;
+  favList.appendChild(li);
+}
+
+/* ===== Add favorite ===== */
+async function addFavorite(card) {
+  if (!card) return;
+  if (document.getElementById(`fav-${card.id}`)) return;
+  overlayFav.disabled = true;
+  overlayFav.textContent = "❤️ Added";
+
+  await fetch(API_FAV, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-CSRFToken': csrf()},
+    credentials: 'include',
+    body: JSON.stringify({ dish_id: card.id })
+  });
+
+  addToSidebar(card);
+}
+
+/* ===== Load existing favorites ===== */
+async function loadFavorites() {
+  const r = await fetch(API_GET_FAVS, {credentials:'include'});
+  const data = await r.json();
+  (data.favorites || []).forEach(card => addToSidebar(card));
+}
+
+/* ===== Load batch (lazy-load) ===== */
+async function loadBatch() {
+  if (doneLoading) return;
+  const r = await fetch(`${API_BATCH}?n=10&offset=${offset}`, {credentials:'include'});
+  const data = await r.json();
+  const newCards = data.cards || [];
+  stack.push(...newCards);
+  offset += newCards.length;
+  doneLoading = data.done;
+  renderStack();
+}
+
+/* ===== Render stack ===== */
+function renderStack() {
+  stackEl.innerHTML = '';
+  stack.slice(0, VISIBLE_CARDS).forEach((card, idx) => {
+    const el = createCard(card);
+    el.style.zIndex = 100 - idx;
+    el.style.transform = `translateY(${idx*6}px) scale(${1 - idx*0.03})`;
+    stackEl.appendChild(el);
+    if (idx === 0) attachDrag(el, card.id);
+  });
+  if (!stack.length) {
+    stackEl.innerHTML = `<div class="grid place-items-center w-full h-full rounded-xl border bg-white text-gray-600">No food left 🎉</div>`;
+  }
+}
+
+/* ===== Create card element ===== */
+function createCard(card) {
+  const el = document.createElement('div');
+  el.className = "absolute inset-0 rounded-2xl overflow-hidden bg-white shadow-2xl select-none transition";
+  el.innerHTML = `
+    <img src="${card.image_url||''}" class="absolute inset-0 w-full h-full object-cover" />
+    <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+    <div class="absolute bottom-0 p-4 text-white">
+      <h2 class="text-xl font-semibold">${card.name||''}</h2>
+      <p class="opacity-90">${card.description||''}</p>
+    </div>`;
+  return el;
+}
+
+/* ===== Overlay ===== */
+function showResult(card) {
+  resultImage.src = card.image_url || '';
+  resultText.textContent = card.name || '';
+  overlay.classList.remove('hidden');
+  requestAnimationFrame(() => overlay.style.opacity = '1');
+
+  if (document.getElementById(`fav-${card.id}`)) {
+    overlayFav.disabled = true;
+    overlayFav.textContent = "❤️ Added";
+  } else {
+    overlayFav.disabled = false;
+    overlayFav.textContent = "❤️ Favorite";
+  }
+
+  overlayFav.onclick = () => addFavorite(card);
+  overlayOK.onclick = hideOverlay;
+}
+
+function hideOverlay() {
+  overlay.style.opacity = '0';
+  setTimeout(() => overlay.classList.add('hidden'), 300);
+}
+
+/* ===== Swipe logic ===== */
+function attachDrag(cardEl, id) {
+  let startX = 0, dx = 0, dragging = false;
+  cardEl.addEventListener('mousedown', e => { startX = e.clientX; dragging = true; });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    dx = e.clientX - startX;
+    cardEl.style.transform = `translateX(${dx}px) rotate(${dx/18}deg)`;
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    if (dx > 120) { handleLike(topCard()); stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); }
+    else if (dx < -120) { stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); }
+    else cardEl.style.transform = 'translateX(0)';
+  });
+}
+
+/* ===== Button handlers ===== */
+function handleLike(card) { if (card) showResult(card); }
+function handleSkip(card) { if (card) { stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); } }
+
+btnLike.onclick = () => handleLike(topCard());
+btnSkip.onclick = () => handleSkip(topCard());
+btnFav.onclick  = () => { const card = topCard(); if (card) addFavorite(card); };
+
+/* ===== Init ===== */
+loadBatch();
+loadFavorites();
+</script>
+{% endblock %}

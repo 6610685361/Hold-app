@@ -20,7 +20,7 @@ from django.urls import path, include
 
 
 urlpatterns = [
-    path('randomFood', include("RandomFood.urls")),
+    path("", include("RandomFood.urls")),
     path("admin/", admin.site.urls),
     path("", include("main.urls")),  # ให้ main.urls จัดการหน้าเว็บ
     path("accounts/", include("accounts.urls")),  # ให้ accounts.urls จัดการหน้าเว็บ

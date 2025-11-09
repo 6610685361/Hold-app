@@ -3,7 +3,7 @@ from . import views
 
 urlpatterns = [
     path("", views.random_food_page, name="random_food_page"),
-    path("you-chose/<int:food_id>/", views.you_chose_this, name="you_chose_this"),
-    path("add-favorite/<int:food_id>/", views.add_favorite, name="add_favorite"),
+    path("api/foods/batch/", views.api_random_food_batch, name="api_random_food_batch"),
+    path("api/favorites/add/", views.api_add_favorite, name="api_add_favorite"),
+    path("api/favorites/", views.api_get_favorites, name="api_get_favorites"),
 ]
-

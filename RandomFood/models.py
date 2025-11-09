@@ -1,5 +1,6 @@
 from django.db import models
 
+
 # Create your models here.
 class Food(models.Model):
     foodID = models.AutoField(primary_key=True)
