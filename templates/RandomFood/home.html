@@ -169,31 +169,81 @@ function hideOverlay() {
   setTimeout(() => overlay.classList.add('hidden'), 300);
 }
 
-/* ===== Swipe logic ===== */
+/* ===== Swipe logic with mouse + touch ===== */
 function attachDrag(cardEl, id) {
   let startX = 0, dx = 0, dragging = false;
-  cardEl.addEventListener('mousedown', e => { startX = e.clientX; dragging = true; });
-  window.addEventListener('mousemove', e => {
+
+  function startDrag(x) {
+    startX = x;
+    dragging = true;
+  }
+
+  function moveDrag(x) {
     if (!dragging) return;
-    dx = e.clientX - startX;
+    dx = x - startX;
     cardEl.style.transform = `translateX(${dx}px) rotate(${dx/18}deg)`;
-  });
-  window.addEventListener('mouseup', () => {
+  }
+
+  function endDrag() {
     if (!dragging) return;
     dragging = false;
-    if (dx > 120) { handleLike(topCard()); stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); }
-    else if (dx < -120) { stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); }
-    else cardEl.style.transform = 'translateX(0)';
-  });
+    if (dx > 120) {
+      animateSwipe(cardEl, "right");
+    } else if (dx < -120) {
+      animateSwipe(cardEl, "left");
+    } else {
+      cardEl.style.transform = 'translateX(0)';
+    }
+  }
+
+  // Mouse events
+  cardEl.addEventListener('mousedown', e => startDrag(e.clientX));
+  window.addEventListener('mousemove', e => moveDrag(e.clientX));
+  window.addEventListener('mouseup', endDrag);
+
+  // Touch events
+  cardEl.addEventListener('touchstart', e => startDrag(e.touches[0].clientX));
+  window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX));
+  window.addEventListener('touchend', endDrag);
+}
+
+/* ===== Swipe animation ===== */
+function animateSwipe(cardEl, direction) {
+  const card = topCard();
+  if (!card) return;
+
+  const xOffset = direction === "right" ? 400 : -400;
+  cardEl.style.transition = "transform 0.3s ease-out, opacity 0.3s ease-out";
+  cardEl.style.transform = `translateX(${xOffset}px) rotate(${direction === "right" ? 15 : -15}deg)`;
+  cardEl.style.opacity = "0";
+
+  setTimeout(() => {
+    if (direction === "right") {
+      showResult(card);
+    }
+    stack.shift();
+    if (stack.length < VISIBLE_CARDS) loadBatch();
+    renderStack();
+  }, 300);
 }
 
 /* ===== Button handlers ===== */
-function handleLike(card) { if (card) showResult(card); }
-function handleSkip(card) { if (card) { stack.shift(); if (stack.length<VISIBLE_CARDS) loadBatch(); renderStack(); } }
+btnLike.onclick = () => {
+  const card = topCard();
+  const el = stackEl.querySelector('.absolute'); // topmost card
+  if (card && el) animateSwipe(el, "right");
+};
 
-btnLike.onclick = () => handleLike(topCard());
-btnSkip.onclick = () => handleSkip(topCard());
-btnFav.onclick  = () => { const card = topCard(); if (card) addFavorite(card); };
+btnSkip.onclick = () => {
+  const card = topCard();
+  const el = stackEl.querySelector('.absolute');
+  if (card && el) animateSwipe(el, "left");
+};
+
+btnFav.onclick = () => {
+  const card = topCard();
+  if (card) addFavorite(card);
+};
 
 /* ===== Init ===== */
 loadBatch();
