@@ -23,8 +23,22 @@ def random_food_page(request):
 def add_favorite(request, food_id):
     """(optional simple version kept)"""
     food = get_object_or_404(Food, pk=food_id)
-    request.user.profile.favorites.add(food)
-    return redirect("profile")
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if food not in profile.favorites.all():
+        profile.favorites.add(food)
+        food.favorite_count = max(0, food.favorite_count - 1)
+        food.save()
+        action = "removed"
+    else:
+        profile.favorites.add(food)
+        food.favorite_count += 1
+        food.save()
+        action = "added"
+
+    return JsonResponse(
+        {"ok": True, "action": action, "favorite_count": food.favorite_count}
+    )
 
 
 # === API endpoints for frontend ===
@@ -76,12 +90,37 @@ def api_add_favorite(request):
         # get or create profile
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-        # add favorite if not already
-        profile.favorites.add(food)
-
-        return JsonResponse({"ok": True})
+        if food in profile.favorites.all():
+            profile.favorites.remove(food)
+            food.favorite_count = max(0, food.favorite_count - 1)
+            food.save()
+            return JsonResponse(
+                {"status": "removed", "favorite_count": food.favorite_count}
+            )
+        else:
+            profile.favorites.add(food)
+            food.favorite_count += 1
+            food.save()
+            return JsonResponse(
+                {"status": "added", "favorite_count": food.favorite_count}
+            )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+def remove_favorite(request, food_id):
+    food = get_object_or_404(Food, pk=food_id)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if food in profile.favorites.all():
+        profile.favorites.remove(food)
+        # ลด favorite count
+        if food.favorite_count > 0:
+            food.favorite_count -= 1
+            food.save()
+
+    return JsonResponse({"ok": True, "removed": food_id})
 
 
 @login_required

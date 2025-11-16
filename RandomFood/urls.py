@@ -6,4 +6,7 @@ urlpatterns = [
     path("api/foods/batch/", views.api_random_food_batch, name="api_random_food_batch"),
     path("api/favorites/add/", views.api_add_favorite, name="api_add_favorite"),
     path("api/favorites/", views.api_get_favorites, name="api_get_favorites"),
+    path(
+        "remove-favorite/<int:food_id>/", views.remove_favorite, name="remove_favorite"
+    ),
 ]

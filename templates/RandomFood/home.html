@@ -71,12 +71,24 @@ const topCard = () => stack[0] || null;
 function addToSidebar(card) {
   if (!card) return;
   if (document.getElementById(`fav-${card.id}`)) return;
+
   const li = document.createElement('li');
   li.id = `fav-${card.id}`;
   li.className = "flex items-center gap-2 border-b pb-1";
+
   li.innerHTML = `
     <img src="${card.image_url||''}" class="w-10 h-10 rounded object-cover border" />
-    <span class="text-sm font-medium truncate">${card.name}</span>`;
+    <span class="text-sm font-medium truncate flex-1">${card.name}</span>
+
+    <button
+      onclick="removeFavorite(${card.id})"
+      class="text-red-500 hover:text-red-700 font-bold text-lg px-2"
+      title="Remove from favorites"
+    >
+      ✕
+    </button>
+  `;
+
   favList.appendChild(li);
 }
 
@@ -244,6 +256,25 @@ btnFav.onclick = () => {
   const card = topCard();
   if (card) addFavorite(card);
 };
+
+/* ===== Remove favorite ===== */
+
+async function removeFavorite(foodId) {
+  try {
+    const res = await fetch(`remove-favorite/${foodId}/`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      const li = document.getElementById(`fav-${foodId}`);
+      if (li) li.remove();
+    }
+  } catch (err) {
+    console.error("Remove favorite failed:", err);
+  }
+}
 
 /* ===== Init ===== */
 loadBatch();
