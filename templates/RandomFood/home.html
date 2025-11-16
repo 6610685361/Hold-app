@@ -14,8 +14,8 @@
     <form class="w-[420px] max-w-[92vw] mb-3 flex gap-2 items-center">
       {% csrf_token %}
       <!-- Category select -->
-      <label class="text-sm mr-1">Category</label>
-      <select id="filterCategory" class="rounded px-2 py-1 border">
+      <label class="text-sm mr-2">Category</label>
+      <select id="filterCategory" class="rounded px-3 py-1 border">
         <option value="">All Categories</option>
         {% for c in categories %}
           <option value="{{ c.id }}">{{ c.name }}</option>
@@ -24,13 +24,13 @@
 
       <!-- Types select (multi-select) -->
       <label class="text-sm ml-2 mr-1">Type</label>
-      <select id="filterTypes" multiple size="1" class="rounded px-2 py-1 border">
+      <select id="filterTypes" multiple size="1" class="rounded px-4 py-1 border">
         {% for t in types %}
           <option value="{{ t.id }}">{{ t.name }}</option>
         {% endfor %}
       </select>
 
-      <button type="button" id="btnApplyFilters" class="ml-2 px-3 py-1 rounded bg-sky-600 text-white">Apply</button>
+      <button type="button" id="btnApplyFilters" class="ml-5 px-3 py-1 rounded bg-sky-600 text-white">Apply</button>
       <button type="button" id="btnClearFilters" class="ml-1 px-3 py-1 rounded border">Clear</button>
     </form>
 
