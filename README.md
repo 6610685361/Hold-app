@@ -11,7 +11,7 @@ https://hold-vn2e.onrender.com/
 - Works on mobile and desktop
 - Quick and fun decision-making experience
 - Save favorite meals
-- [WIP] Filter food by type (e.g., Thai, fast food, dessert)
+- Filter food by type (e.g., Thai, fast food, dessert)
 
 ## Members 
 - Teepop Bumbudpai 6610685197
