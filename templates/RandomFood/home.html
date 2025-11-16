@@ -2,7 +2,7 @@
 {% block title %}Random Food{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr]">
+<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4">
   <!-- Favorites sidebar -->
   <aside class="border rounded-xl bg-white p-3 h-[560px] overflow-hidden self-center">
     <h3 class="font-semibold mb-2">Favorites</h3>
@@ -11,7 +11,29 @@
 
   <!-- Main swipe section -->
   <section class="flex flex-col items-center justify-center relative">
-    <form>{% csrf_token %}</form>
+    <form class="w-[420px] max-w-[92vw] mb-3 flex gap-2 items-center">
+      {% csrf_token %}
+      <!-- Category select -->
+      <label class="text-sm mr-2">Category</label>
+      <select id="filterCategory" class="rounded px-3 py-1 border">
+        <option value="">All Categories</option>
+        {% for c in categories %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+
+      <!-- Types select (multi-select) -->
+      <label class="text-sm ml-2 mr-1">Type</label>
+      <select id="filterTypes" multiple size="1" class="rounded px-4 py-1 border">
+        {% for t in types %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="button" id="btnApplyFilters" class="ml-5 px-3 py-1 rounded bg-sky-600 text-white">Apply</button>
+      <button type="button" id="btnClearFilters" class="ml-1 px-3 py-1 rounded border">Clear</button>
+    </form>
+
     <div id="stack" class="relative w-[420px] max-w-[92vw] h-[560px]"></div>
 
     <div class="flex gap-3 w-[420px] max-w-[92vw] mt-3">
@@ -56,6 +78,11 @@ const resultText    = document.getElementById('resultText');
 const overlayFav    = document.getElementById('overlayFav');
 const overlayOK     = document.getElementById('overlayOK');
 
+const filterCategory = document.getElementById('filterCategory');
+const filterTypes = document.getElementById('filterTypes');
+const btnApplyFilters = document.getElementById('btnApplyFilters');
+const btnClearFilters = document.getElementById('btnClearFilters');
+
 let stack = [];
 let offset = 0;
 let doneLoading = false;
@@ -71,12 +98,24 @@ const topCard = () => stack[0] || null;
 function addToSidebar(card) {
   if (!card) return;
   if (document.getElementById(`fav-${card.id}`)) return;
+
   const li = document.createElement('li');
   li.id = `fav-${card.id}`;
   li.className = "flex items-center gap-2 border-b pb-1";
+
   li.innerHTML = `
     <img src="${card.image_url||''}" class="w-10 h-10 rounded object-cover border" />
-    <span class="text-sm font-medium truncate">${card.name}</span>`;
+    <span class="text-sm font-medium truncate flex-1">${card.name}</span>
+
+    <button
+      onclick="removeFavorite(${card.id})"
+      class="text-red-500 hover:text-red-700 font-bold text-lg px-2"
+      title="Remove from favorites"
+    >
+      ✕
+    </button>
+  `;
+
   favList.appendChild(li);
 }
 
@@ -104,15 +143,67 @@ async function loadFavorites() {
   (data.favorites || []).forEach(card => addToSidebar(card));
 }
 
+/* ===== Build query params from filters ===== */
+function buildFilterQuery() {
+  const params = new URLSearchParams();
+  // Category (single)
+  if (filterCategory && filterCategory.value) {
+    params.set("category", filterCategory.value);
+  }
+  // Types (multiple)
+  if (filterTypes) {
+    const selected = Array.from(filterTypes.selectedOptions).map(o => o.value).filter(v => v);
+    if (selected.length) {
+      params.set("types", selected.join(","));
+    }
+  }
+  return params.toString();
+}
+
+/* ===== Reset stack when filters change ===== */
+function resetStackAndReload() {
+  stack = [];
+  offset = 0;
+  doneLoading = false;
+  stackEl.innerHTML = '';
+  loadBatch();
+}
+
+/* ===== Event wiring for filter buttons ===== */
+btnApplyFilters.addEventListener('click', () => {
+  resetStackAndReload();
+});
+
+btnClearFilters.addEventListener('click', () => {
+  filterCategory.value = "";
+  // clear selected in multi select
+  Array.from(filterTypes.options).forEach(o => o.selected = false);
+  resetStackAndReload();
+});
+
 /* ===== Load batch (lazy-load) ===== */
 async function loadBatch() {
   if (doneLoading) return;
-  const r = await fetch(`${API_BATCH}?n=10&offset=${offset}`, {credentials:'include'});
+  // fetch 10 at a time
+  const params = new URLSearchParams();
+  params.set("n", 10);
+  params.set("offset", offset);
+
+  // add filters
+  const filterQuery = buildFilterQuery();
+  if (filterQuery) {
+    // append each filter param individually (API expects query params category & types)
+    const fq = new URLSearchParams(filterQuery);
+    for (const [k,v] of fq.entries()) params.set(k, v);
+  }
+
+  const url = `${API_BATCH}?${params.toString()}`;
+  const r = await fetch(url, {credentials:'include'});
   const data = await r.json();
   const newCards = data.cards || [];
   stack.push(...newCards);
   offset += newCards.length;
-  doneLoading = data.done;
+  doneLoading = !!data.done;
   renderStack();
 }
 
@@ -244,6 +335,25 @@ btnFav.onclick = () => {
   const card = topCard();
   if (card) addFavorite(card);
 };
+
+/* ===== Remove favorite ===== */
+
+async function removeFavorite(foodId) {
+  try {
+    const res = await fetch(`remove-favorite/${foodId}/`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      const li = document.getElementById(`fav-${foodId}`);
+      if (li) li.remove();
+    }
+  } catch (err) {
+    console.error("Remove favorite failed:", err);
+  }
+}
 
 /* ===== Init ===== */
 loadBatch();

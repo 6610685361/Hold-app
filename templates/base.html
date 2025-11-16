@@ -1,55 +1,52 @@
 {% load static %}
-<!doctype html>
+<!DOCTYPE html>
 <html lang="th">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <title>{% block title %}Hold{% endblock %}</title>
+    <title>
+      {% block title %}
+        Hold
+      {% endblock %}
+    </title>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
 
-<body class="bg-gray-50 text-gray-900">
-  <!-- Navbar -->
-  <nav class="bg-white/90 backdrop-blur shadow-sm">
-    <div class="max-w-6xl mx-auto px-4">
-      <div class="flex h-14 items-center justify-between">
-        <!-- Brand -->
-        <a href="{% url 'home' %}" class="text-3xl font-semibold tracking-tight hover:opacity-90">
-          Hold
-        </a>
+  <body class="bg-gray-50 text-gray-900">
+    <!-- Navbar -->
+    <nav class="bg-white/90 backdrop-blur shadow-sm">
+      <div class="max-w-6xl mx-auto px-4">
+        <div class="flex h-14 items-center justify-between">
+          <!-- Brand -->
+          <a href="{% url 'home' %}" class="text-3xl font-semibold tracking-tight hover:opacity-90">Hold</a>
 
-        <!-- Right menu -->
-        <div class="flex items-center gap-2">
-          <a href="{% url 'about' %}"
-            class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm
-                   hover:bg-gray-100 transition">About
-          </a>
-          {% if user.is_authenticated %}
-          <span class="text-sm text-gray-700">Hi, {{ user.username }}</span>
-          <a href="{% url 'profile' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">
-            Profile
-          </a>
-          <a href="{% url 'logout' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">
-            Logout
-          </a>
-          {% else %}
-          <a href="{% url 'login' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">
-            Login
-          </a>
-          <a href="{% url 'register' %}" class="text-sm px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition">
-            Register
-          </a>
-          {% endif %}
+          <!-- Right menu -->
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-700">Hi, {{ user.username }}</span>
+            {% if user.is_staff %}
+              <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 transition">Dashboard</a>
+              <a href="/admin/" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 transition">Django Admin</a>
+            {% endif %}
+            <a href="{% url 'about' %}" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 transition">About</a>
+            {% if user.is_authenticated %}
+              <a href="{% url 'profile' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">Profile</a>
+              <a href="{% url 'logout' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">Logout</a>
+            {% else %}
+              <a href="{% url 'login' %}" class="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100 transition">Login</a>
+              <a href="{% url 'register' %}" class="text-sm px-3 py-1.5 rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition">Register</a>
+            {% endif %}
+          </div>
         </div>
       </div>
-    </div>
-  </nav>
+    </nav>
 
-  <!-- Main container -->
-  <main class="max-w-6xl mx-auto px-4 py-6">
-    {% block content %}{% endblock %}
-  </main>
-</body>
+    <!-- Main container -->
+    <main class="max-w-6xl mx-auto px-4 py-6">
+      {% block content %}
+
+      {% endblock %}
+    </main>
+  </body>
 </html>

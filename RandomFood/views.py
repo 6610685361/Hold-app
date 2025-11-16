@@ -3,7 +3,7 @@ import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from .models import Food
+from .models import Food, FoodCategory, FoodType
 from accounts.models import UserProfile
 
 # === Regular HTML pages ===
@@ -11,7 +11,16 @@ from accounts.models import UserProfile
 
 def random_food_page(request):
     """Main page that loads the interactive swipe UI"""
-    return render(request, "RandomFood/home.html")
+    categories = FoodCategory.objects.order_by("name").all()
+    types = FoodType.objects.order_by("name").all()
+    return render(
+        request,
+        "RandomFood/home.html",
+        {
+            "categories": categories,
+            "types": types,
+        },
+    )
 
 
 # def you_chose_this(request, food_id):
@@ -23,15 +32,35 @@ def random_food_page(request):
 def add_favorite(request, food_id):
     """(optional simple version kept)"""
     food = get_object_or_404(Food, pk=food_id)
-    request.user.profile.favorites.add(food)
-    return redirect("profile")
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if food not in profile.favorites.all():
+        profile.favorites.add(food)
+        food.favorite_count = max(0, food.favorite_count - 1)
+        food.save()
+        action = "removed"
+    else:
+        profile.favorites.add(food)
+        food.favorite_count += 1
+        food.save()
+        action = "added"
+
+    return JsonResponse(
+        {"ok": True, "action": action, "favorite_count": food.favorite_count}
+    )
 
 
 # === API endpoints for frontend ===
 
 
 def api_random_food_batch(request):
-    """Return random n foods starting from offset as JSON"""
+    """Return random n foods starting from offset as JSON.
+    Accepts optional GET params:
+      - category: category id (int) or empty for all
+      - types: comma-separated food_type ids (e.g. "1,3") OR a single type id
+      - n: number of items to return (default 3)
+      - offset: offset into the shuffled list (default 0)
+    """
     n = request.GET.get("n")
     offset = request.GET.get("offset", 0)
     try:
@@ -41,12 +70,38 @@ def api_random_food_batch(request):
         n = 3
         offset = 0
 
-    foods = list(Food.objects.all())
-    if not foods:
+    # Filter by category/type if provided
+    category = request.GET.get("category")  # expected category id
+    types_param = request.GET.get("types")  # expected comma-separated type ids
+
+    foods_qs = Food.objects.all()
+
+    if category:
+        try:
+            cat_id = int(category)
+            foods_qs = foods_qs.filter(category_id=cat_id)
+        except:
+            # ignore invalid category param
+            pass
+
+    if types_param:
+        # allow comma-separated or single id
+        try:
+            type_ids = [int(t) for t in types_param.split(",") if t.strip()]
+            if type_ids:
+                foods_qs = foods_qs.filter(food_types__id__in=type_ids).distinct()
+        except:
+            # ignore invalid types param
+            pass
+
+    # Materialize and shuffle
+    foods_list = list(foods_qs)
+    total = len(foods_list)
+    if total == 0:
         return JsonResponse({"cards": [], "done": True})
 
-    random.shuffle(foods)
-    cards = foods[offset : offset + n]
+    random.shuffle(foods_list)
+    cards = foods_list[offset : offset + n]
 
     data = [
         {
@@ -57,7 +112,7 @@ def api_random_food_batch(request):
         }
         for f in cards
     ]
-    done = (offset + n) >= len(foods)
+    done = (offset + n) >= total
     return JsonResponse({"cards": data, "done": done})
 
 
@@ -76,12 +131,37 @@ def api_add_favorite(request):
         # get or create profile
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-        # add favorite if not already
-        profile.favorites.add(food)
-
-        return JsonResponse({"ok": True})
+        if food in profile.favorites.all():
+            profile.favorites.remove(food)
+            food.favorite_count = max(0, food.favorite_count - 1)
+            food.save()
+            return JsonResponse(
+                {"status": "removed", "favorite_count": food.favorite_count}
+            )
+        else:
+            profile.favorites.add(food)
+            food.favorite_count += 1
+            food.save()
+            return JsonResponse(
+                {"status": "added", "favorite_count": food.favorite_count}
+            )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+def remove_favorite(request, food_id):
+    food = get_object_or_404(Food, pk=food_id)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if food in profile.favorites.all():
+        profile.favorites.remove(food)
+        # ลด favorite count
+        if food.favorite_count > 0:
+            food.favorite_count -= 1
+            food.save()
+
+    return JsonResponse({"ok": True, "removed": food_id})
 
 
 @login_required
