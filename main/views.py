@@ -19,7 +19,7 @@ def admin_dashboard(request):
 
 
 def home(request):
-    return render(request, "pages/home.html")
+    return render(request, "RandomFood\home.html")
 
 
 def about(request):
