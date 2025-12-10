@@ -54,14 +54,84 @@
         <div id="resultText" class="text-white text-xl font-semibold mb-6"></div>
         <div class="flex gap-5">
           <button id="overlayFav" class="px-6 py-2.5 rounded-lg bg-yellow-400 text-black font-semibold shadow-md">❤️ Favorite</button>
+          <button id="overlayMap" class="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold shadow-md">📍 Nearby</button>
           <button id="overlayOK"  class="px-6 py-2.5 rounded-lg bg-green-600 text-white font-semibold shadow-md">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map & Results Modal (Option C layout: Map left, results right) -->
+    <div id="mapModal" class="fixed inset-0 hidden bg-black/60 backdrop-blur-sm z-[9999] flex items-start justify-center p-4 pt-8">
+      <div class="bg-white p-4 rounded-xl shadow-xl w-full max-w-[1100px] max-h-[90vh] overflow-hidden">
+        <!-- Header: search status & controls -->
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 class="text-xl font-semibold">Nearby Places</h2>
+            <div id="searchStatus" class="text-sm text-gray-600">Searching for: <span id="searchTermText" class="font-medium"></span></div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label class="text-sm">Radius</label>
+            <select id="mapRadius" class="rounded px-2 py-1 border">
+              <option value="1000">1 km</option>
+              <option value="3000" selected>3 km</option>
+              <option value="5000">5 km</option>
+              <option value="10000">10 km</option>
+            </select>
+
+            <label class="text-sm ml-2">Open now</label>
+            <input id="mapOpenNow" type="checkbox" class="ml-1" />
+
+            <label class="text-sm ml-2">Price</label>
+            <select id="mapPrice" class="rounded px-2 py-1 border">
+              <option value="">Any</option>
+              <option value="0">Low (1)</option>
+              <option value="1">Moderate (2)</option>
+              <option value="2">Expensive (3)</option>
+              <option value="3">Very expensive (4)</option>
+            </select>
+
+            <label class="text-sm ml-2">Sort</label>
+            <select id="mapSort" class="rounded px-2 py-1 border">
+              <option value="distance">Distance</option>
+              <option value="rating">Rating</option>
+              <option value="price">Price</option>
+            </select>
+
+            <button id="mapSearchBtn" class="ml-2 px-3 py-1 rounded bg-sky-600 text-white">Search</button>
+            <button onclick="closeMap()" class="ml-2 px-3 py-1 rounded bg-gray-800 text-white">Close</button>
+          </div>
+        </div>
+
+        <!-- Grid: map left, results right -->
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3 h-[72vh]">
+          <div id="map" class="w-full h-full rounded-lg bg-gray-100"></div>
+
+          <div class="flex flex-col border-l pl-3 overflow-hidden">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold">Results</h3>
+              <div id="spinner" class="hidden items-center gap-2">
+                <svg class="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                </svg>
+                <span class="text-sm text-gray-500">Searching…</span>
+              </div>
+            </div>
+
+            <div id="placesList" class="mt-2 space-y-2 overflow-auto pr-2"></div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 </div>
 
+<!-- Load Google Maps JS - replace YOUR_API_KEY with your key -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer></script>
+
 <script>
+/* -------------------------- existing app constants ------------------------- */
 const API_BATCH     = "{% url 'api_random_food_batch' %}";
 const API_FAV       = "{% url 'api_add_favorite' %}";
 const API_GET_FAVS  = "{% url 'api_get_favorites' %}";
@@ -77,6 +147,7 @@ const resultImage   = document.getElementById('resultImage');
 const resultText    = document.getElementById('resultText');
 const overlayFav    = document.getElementById('overlayFav');
 const overlayOK     = document.getElementById('overlayOK');
+const overlayMapBtn = document.getElementById('overlayMap');
 
 const filterCategory = document.getElementById('filterCategory');
 const filterTypes = document.getElementById('filterTypes');
@@ -87,6 +158,9 @@ let stack = [];
 let offset = 0;
 let doneLoading = false;
 const VISIBLE_CARDS = 3;
+
+// [FIX 1] New variable to track the food currently being viewed in the overlay/map
+let activeFoodItem = null; 
 
 /* ===== Helpers ===== */
 function csrf() {
@@ -146,11 +220,9 @@ async function loadFavorites() {
 /* ===== Build query params from filters ===== */
 function buildFilterQuery() {
   const params = new URLSearchParams();
-  // Category (single)
   if (filterCategory && filterCategory.value) {
     params.set("category", filterCategory.value);
   }
-  // Types (multiple)
   if (filterTypes) {
     const selected = Array.from(filterTypes.selectedOptions).map(o => o.value).filter(v => v);
     if (selected.length) {
@@ -169,14 +241,12 @@ function resetStackAndReload() {
   loadBatch();
 }
 
-/* ===== Event wiring for filter buttons ===== */
 btnApplyFilters.addEventListener('click', () => {
   resetStackAndReload();
 });
 
 btnClearFilters.addEventListener('click', () => {
   filterCategory.value = "";
-  // clear selected in multi select
   Array.from(filterTypes.options).forEach(o => o.selected = false);
   resetStackAndReload();
 });
@@ -184,15 +254,12 @@ btnClearFilters.addEventListener('click', () => {
 /* ===== Load batch (lazy-load) ===== */
 async function loadBatch() {
   if (doneLoading) return;
-  // fetch 10 at a time
   const params = new URLSearchParams();
   params.set("n", 10);
   params.set("offset", offset);
 
-  // add filters
   const filterQuery = buildFilterQuery();
   if (filterQuery) {
-    // append each filter param individually (API expects query params category & types)
     const fq = new URLSearchParams(filterQuery);
     for (const [k,v] of fq.entries()) params.set(k, v);
   }
@@ -226,6 +293,7 @@ function renderStack() {
 function createCard(card) {
   const el = document.createElement('div');
   el.className = "absolute inset-0 rounded-2xl overflow-hidden bg-white shadow-2xl select-none transition";
+  el.dataset.id = card.id;
   el.innerHTML = `
     <img src="${card.image_url||''}" class="absolute inset-0 w-full h-full object-cover" />
     <div class="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
@@ -238,6 +306,9 @@ function createCard(card) {
 
 /* ===== Overlay ===== */
 function showResult(card) {
+  // [FIX 1] Store the current card in a global variable so map knows what to look for
+  activeFoodItem = card; 
+
   resultImage.src = card.image_url || '';
   resultText.textContent = card.name || '';
   overlay.classList.remove('hidden');
@@ -253,6 +324,11 @@ function showResult(card) {
 
   overlayFav.onclick = () => addFavorite(card);
   overlayOK.onclick = hideOverlay;
+  
+  // Directly attach the map opener here using the specific 'card' object
+  overlayMapBtn.onclick = () => {
+    openMap(card.name || '');
+  };
 }
 
 function hideOverlay() {
@@ -260,7 +336,7 @@ function hideOverlay() {
   setTimeout(() => overlay.classList.add('hidden'), 300);
 }
 
-/* ===== Swipe logic with mouse + touch ===== */
+/* ===== Swipe logic ===== */
 function attachDrag(cardEl, id) {
   let startX = 0, dx = 0, dragging = false;
 
@@ -287,18 +363,15 @@ function attachDrag(cardEl, id) {
     }
   }
 
-  // Mouse events
   cardEl.addEventListener('mousedown', e => startDrag(e.clientX));
   window.addEventListener('mousemove', e => moveDrag(e.clientX));
   window.addEventListener('mouseup', endDrag);
 
-  // Touch events
   cardEl.addEventListener('touchstart', e => startDrag(e.touches[0].clientX));
   window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX));
   window.addEventListener('touchend', endDrag);
 }
 
-/* ===== Swipe animation ===== */
 function animateSwipe(cardEl, direction) {
   const card = topCard();
   if (!card) return;
@@ -321,8 +394,10 @@ function animateSwipe(cardEl, direction) {
 /* ===== Button handlers ===== */
 btnLike.onclick = () => {
   const card = topCard();
-  const el = stackEl.querySelector('.absolute'); // topmost card
-  if (card && el) animateSwipe(el, "right");
+  const el = stackEl.querySelector('.absolute'); 
+  if (card && el) {
+    animateSwipe(el, "right");
+  }
 };
 
 btnSkip.onclick = () => {
@@ -336,15 +411,12 @@ btnFav.onclick = () => {
   if (card) addFavorite(card);
 };
 
-/* ===== Remove favorite ===== */
-
 async function removeFavorite(foodId) {
   try {
     const res = await fetch(`remove-favorite/${foodId}/`, {
       method: "GET",
       credentials: "include",
     });
-
     const data = await res.json();
     if (data.ok) {
       const li = document.getElementById(`fav-${foodId}`);
@@ -354,6 +426,272 @@ async function removeFavorite(foodId) {
     console.error("Remove favorite failed:", err);
   }
 }
+
+/* ===================== Google Maps / Places ===================== */
+
+const TEMPLATE_FOOD = "{{ food|escapejs }}";
+
+let map;
+let placesService;
+let markers = [];
+let infoWindow;
+const placesListEl = document.getElementById('placesList');
+const mapModalEl = document.getElementById('mapModal');
+const mapRadiusEl = document.getElementById('mapRadius');
+const mapOpenNowEl = document.getElementById('mapOpenNow');
+const mapPriceEl = document.getElementById('mapPrice');
+const mapSearchBtn = document.getElementById('mapSearchBtn');
+const spinnerEl = document.getElementById('spinner');
+const searchTermText = document.getElementById('searchTermText');
+const mapSortEl = document.getElementById('mapSort');
+
+// [FIX 1] Track the search term specifically for the map, independent of the stack
+let currentMapQuery = "";
+
+function clearMarkers() {
+  markers.forEach(m => m.setMap(null));
+  markers = [];
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI/180;
+  const dLon = (lon2 - lon1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+            Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function addPlaceMarker(place, idx) {
+  if (!place.geometry || !place.geometry.location) return null;
+  const marker = new google.maps.Marker({
+    map,
+    position: place.geometry.location,
+    title: place.name,
+    label: `${idx+1}`,
+  });
+  markers.push(marker);
+
+  const openNow = place.opening_hours?.open_now ? "Open now" : (place.opening_hours ? "Closed" : "No data");
+  const price = (place.price_level != null) ? ("$".repeat(place.price_level + 1)) : "N/A";
+  const rating = place.rating ? `${place.rating} ⭐` : "No rating";
+
+  let photoHtml = "";
+  if (place.photos && place.photos.length) {
+    try {
+      const url = place.photos[0].getUrl({maxWidth: 300});
+      photoHtml = `<div class="mt-2"><img src="${url}" class="w-full rounded" /></div>`;
+    } catch (e) {
+      photoHtml = "";
+    }
+  }
+
+  const content = `
+    <div style="max-width:320px">
+      <strong>${place.name}</strong><br/>
+      <small class="text-xs">${place.vicinity || place.formatted_address || ''}</small>
+      ${photoHtml}
+      <div class="mt-2 text-sm">${rating} · ${price} · ${openNow}</div>
+      <div class="mt-2"><a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${place.geometry.location.lat()},${place.geometry.location.lng()}">Directions</a></div>
+    </div>
+  `;
+
+  marker.addListener('click', () => {
+    infoWindow.setContent(content);
+    infoWindow.open(map, marker);
+  });
+
+  return marker;
+}
+
+function renderPlacesList(places, userCenter) {
+  placesListEl.innerHTML = '';
+  if (!places || !places.length) {
+    placesListEl.innerHTML = '<div class="text-sm text-gray-600">No results found</div>';
+    return;
+  }
+
+  places.forEach((p, i) => {
+    const distKm = p.distance != null ? p.distance.toFixed(2) : '-';
+    const price = (p.price_level != null) ? ("$".repeat(p.price_level + 1)) : 'N/A';
+    const rating = p.rating ? `${p.rating} ⭐` : 'No rating';
+    const openNow = p.opening_hours?.open_now ? 'Open' : (p.opening_hours ? 'Closed' : 'No data');
+    const photoUrl = (p.photos && p.photos.length) ? p.photos[0].getUrl({maxWidth:200}) : null;
+
+    const card = document.createElement('div');
+    card.className = "place-card bg-white rounded-md p-3 shadow-sm hover:shadow md:hover:scale-[1.01] transition cursor-pointer";
+
+    card.innerHTML = `
+      <div class="flex gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="font-semibold text-sm">${p.name}</div>
+              <div class="text-xs text-gray-500">${p.vicinity || p.formatted_address || ''}</div>
+              <div class="text-xs text-gray-600 mt-1">${rating} · ${price} · ${openNow}</div>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+              <div>${distKm} km</div>
+              <div class="mt-2"><a class="text-sky-600 underline" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.geometry.location.lat()},${p.geometry.location.lng()}">Directions</a></div>
+            </div>
+          </div>
+          ${photoUrl ? `<div class="mt-2"><img src="${photoUrl}" class="w-full rounded-md object-cover h-28" /></div>` : ''}
+          <div class="flex gap-2 mt-3">
+             <button class="px-3 py-1 text-xs bg-sky-600 text-white rounded view-btn" data-idx="${i}">View on map</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    card.querySelector('.view-btn')?.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const marker = markers[i];
+      if (marker) {
+        map.panTo(marker.getPosition());
+        map.setZoom(16);
+        google.maps.event.trigger(marker, 'click');
+      }
+    });
+
+    placesListEl.appendChild(card);
+  });
+}
+
+function searchPlacesText(keyword, centerLatLng) {
+  if (!map || !google || !google.maps) return;
+
+  clearMarkers();
+  placesListEl.innerHTML = '';
+  spinnerEl.classList.remove('hidden');
+  searchTermText.textContent = `"${keyword}"`;
+
+  const radius = parseInt(mapRadiusEl.value, 10) || 3000;
+  const requireOpenNow = mapOpenNowEl.checked;
+  const priceFilter = mapPriceEl.value !== '' ? parseInt(mapPriceEl.value, 10) : null;
+
+  const request = {
+    query: `${keyword} restaurant`,
+    location: centerLatLng,
+    radius: radius
+  };
+
+  placesService.textSearch(request, (results, status) => {
+    spinnerEl.classList.add('hidden');
+
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !results) {
+      placesListEl.innerHTML = '<div class="text-sm text-gray-600">No results found</div>';
+      return;
+    }
+
+    const enriched = results.map(r => {
+      const lat = r.geometry.location.lat();
+      const lng = r.geometry.location.lng();
+      const distance = centerLatLng ? haversineKm(centerLatLng.lat(), centerLatLng.lng(), lat, lng) : null;
+      return {...r, distance};
+    });
+
+    let filtered = enriched.filter(p => {
+      if (requireOpenNow && !(p.opening_hours && p.opening_hours.open_now)) return false;
+      if (priceFilter != null) {
+        if (p.price_level == null) return false;
+        if (p.price_level !== priceFilter) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0 && (requireOpenNow || priceFilter != null)) {
+      filtered = enriched.filter(p => {
+        if (requireOpenNow && !(p.opening_hours && p.opening_hours.open_now)) return false;
+        return true;
+      });
+    }
+
+    const sortMode = mapSortEl.value || 'distance';
+    if (sortMode === 'distance') {
+      filtered.sort((a,b) => (a.distance || 9999) - (b.distance || 9999));
+    } else if (sortMode === 'rating') {
+      filtered.sort((a,b) => (b.rating||0) - (a.rating||0));
+    } else if (sortMode === 'price') {
+      filtered.sort((a,b) => (a.price_level||0) - (b.price_level||0));
+    }
+
+    infoWindow = infoWindow || new google.maps.InfoWindow();
+    filtered.forEach((p, i) => addPlaceMarker(p, i));
+    renderPlacesList(filtered, centerLatLng);
+    
+    // [FIX 2] Removed the pagination setTimeout here. 
+    // This was causing the "random place" issue by loading page 2 and clearing page 1 results.
+  });
+}
+
+function openMap(foodName) {
+  mapModalEl.classList.remove('hidden');
+  
+  // [FIX 1] Save this food name so Search button uses THIS name, not the stack's top card
+  currentMapQuery = foodName; 
+
+  const initWithPosition = (pos) => {
+    const center = pos ? new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude) : new google.maps.LatLng(13.7563, 100.5018);
+    if (!map) {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: center,
+        zoom: 14,
+      });
+    } else {
+      map.setCenter(center);
+    }
+
+    if (!window._userMarker) {
+      window._userMarker = new google.maps.Marker({ map, position: center, title: 'You' });
+    } else {
+      window._userMarker.setPosition(center);
+    }
+
+    placesService = placesService || new google.maps.places.PlacesService(map);
+    infoWindow = infoWindow || new google.maps.InfoWindow();
+
+    searchPlacesText(foodName, map.getCenter && map.getCenter());
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(initWithPosition, () => initWithPosition(null), {timeout:5000});
+  } else {
+    initWithPosition(null);
+  }
+}
+
+function closeMap() {
+  mapModalEl.classList.add('hidden');
+}
+
+mapSearchBtn.addEventListener('click', () => {
+  // [FIX 1] Use the stored query instead of topCard(), which might have changed
+  const foodName = currentMapQuery || TEMPLATE_FOOD || '';
+  if (!foodName) return;
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const center = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+      map.setCenter(center);
+      window._userMarker?.setPosition(center);
+      searchPlacesText(foodName, center);
+    }, () => {
+      const fallback = new google.maps.LatLng(13.7563, 100.5018);
+      map.setCenter(fallback);
+      searchPlacesText(foodName, fallback);
+    }, {timeout:5000});
+  } else {
+    const fallback = new google.maps.LatLng(13.7563, 100.5018);
+    map.setCenter(fallback);
+    searchPlacesText(foodName, fallback);
+  }
+});
+
+/* [FIX 1] REMOVED the redundant overlayMapBtn.addEventListener here.
+   It was grabbing topCard() from the stack (which was the wrong card). 
+   The logic is now securely handled inside showResult() via onclick assignment. 
+*/
 
 /* ===== Init ===== */
 loadBatch();

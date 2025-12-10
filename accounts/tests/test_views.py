@@ -1,94 +1,100 @@
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
 
 
 class AccountsViewsTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.register_url = reverse("register")
+        self.login_url = reverse("login")
+        self.logout_url = reverse("logout")
+        self.profile_url = reverse("profile")
+        self.edit_profile_url = reverse("edit_profile")
+        self.home_url = reverse("home")
 
-    # ✅ 1) ทดสอบว่าเปิดหน้า register ได้
+        # สร้าง user สำหรับ test ที่ต้อง login
+        self.user = User.objects.create_user(username="tester", password="test12345")
+
+    # ------------------------
+    # Register view
+    # ------------------------
     def test_register_page_loads(self):
-        response = self.client.get(reverse("register"))
+        response = self.client.get(self.register_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "accounts/register.html")
 
-    # ✅ 2) ทดสอบสมัครสมาชิกสำเร็จ
-    def test_register_user(self):
-        response = self.client.post(
-            reverse("register"),
-            {
-                "username": "testuser",
-                "password1": "StrongPass123!",
-                "password2": "StrongPass123!",
-            },
-        )
-
-        # สมัครแล้วต้อง redirect ไปหน้า home
+    def test_register_success(self):
+        data = {
+            "username": "newuser",
+            "password1": "NewPass123",
+            "password2": "NewPass123",
+        }
+        response = self.client.post(self.register_url, data)
         self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("home"))
+        self.assertRedirects(response, self.home_url)
+        self.assertTrue(User.objects.filter(username="newuser").exists())
 
-        # และผู้ใช้ต้องถูกสร้างจริง
-        self.assertTrue(User.objects.filter(username="testuser").exists())
+    def test_register_invalid(self):
+        # password ไม่ตรงกัน
+        data = {"username": "baduser", "password1": "123", "password2": "456"}
+        response = self.client.post(self.register_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "accounts/register.html")
+        self.assertFalse(User.objects.filter(username="baduser").exists())
 
-    # ✅ 3) ทดสอบเปิดหน้า login ได้
+    # ------------------------
+    # Login view
+    # ------------------------
     def test_login_page_loads(self):
-        response = self.client.get(reverse("login"))
+        response = self.client.get(self.login_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "accounts/login.html")
 
-    # ✅ 4) ทดสอบ login สำเร็จ
     def test_login_success(self):
-        User.objects.create_user(username="testuser", password="StrongPass123!")
+        data = {"username": "tester", "password": "test12345"}
+        response = self.client.post(self.login_url, data)
+        self.assertRedirects(response, self.home_url)
 
-        response = self.client.post(
-            reverse("login"), {"username": "testuser", "password": "StrongPass123!"}
-        )
+    def test_login_fail(self):
+        data = {"username": "tester", "password": "wrongpass"}
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please enter a correct username and password")
 
-        self.assertEqual(response.status_code, 302)
+    # ------------------------
+    # Logout view
+    # ------------------------
+    def test_logout_redirects_to_home(self):
+        self.client.login(username="tester", password="test12345")
+        response = self.client.get(self.logout_url)
+        self.assertRedirects(response, self.home_url)
 
-    # ✅ 5) ทดสอบหน้า profile ต้อง login ก่อน
+    # ------------------------
+    # Profile view
+    # ------------------------
     def test_profile_requires_login(self):
-        response = self.client.get(reverse("profile"))
-        self.assertEqual(response.status_code, 302)  # redirect to login
-        self.assertIn(reverse("login"), response.url)
+        response = self.client.get(self.profile_url)
+        self.assertRedirects(response, f"/accounts/login/?next={self.profile_url}")
 
-    # ✅ 6) ทดสอบดูหน้า profile สำเร็จ
     def test_profile_page_loads_when_logged_in(self):
-        user = User.objects.create_user(username="testuser", password="StrongPass123!")
-        self.client.login(username="testuser", password="StrongPass123!")
-
-        response = self.client.get(reverse("profile"))
+        self.client.login(username="tester", password="test12345")
+        response = self.client.get(self.profile_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "accounts/profile.html")
 
-    # ✅ 7) ทดสอบ edit profile ต้อง login ก่อน
-    def test_edit_profile_requires_login(self):
-        response = self.client.get(reverse("edit_profile"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(reverse("login"), response.url)
+    # ------------------------
+    # Edit profile view
+    # ------------------------
+    def test_edit_profile_get(self):
+        self.client.login(username="tester", password="test12345")
+        response = self.client.get(self.edit_profile_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "accounts/edit_profile.html")
 
-    # ✅ 8) ทดสอบแก้ไข profile สำเร็จ
-    def test_edit_profile_success(self):
-        user = User.objects.create_user(username="testuser", password="StrongPass123!")
-        self.client.login(username="testuser", password="StrongPass123!")
-
-        response = self.client.post(
-            reverse("edit_profile"), {"username": "updateduser"}
-        )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("profile"))
-
-        # เช็คว่าชื่อถูกเปลี่ยนจริงไหม
-        user.refresh_from_db()
-        self.assertEqual(user.username, "updateduser")
-
-    # ✅ 9) ทดสอบ logout
-    def test_logout(self):
-        user = User.objects.create_user(username="testuser", password="StrongPass123!")
-        self.client.login(username="testuser", password="StrongPass123!")
-
-        response = self.client.get(reverse("logout"))
-
-        # logout แล้วต้องเด้งกลับ home
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("home"))
+    def test_edit_profile_post(self):
+        self.client.login(username="tester", password="test12345")
+        response = self.client.post(self.edit_profile_url, {"username": "tester_new"})
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "tester_new")
+        self.assertRedirects(response, self.profile_url)
