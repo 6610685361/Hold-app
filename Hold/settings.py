@@ -143,7 +143,7 @@ MIDDLEWARE = [
 if not os.environ.get("DEBUG", "False") == "True":
     DATABASES = {
         "default": dj_database_url.parse(
-            "postgresql://holddb_user:wKKvaCjkpcyl8qbtHW8RAGoIM8JBrncx@dpg-d43lftjipnbc73c27e80-a.singapore-postgres.render.com/holddb"
+            "postgresql://holddb_mrsd_user:YEixvrnFg40sG9EHT28kgFZ5EYO70QFk@dpg-d4slp0re5dus73aoun7g-a.singapore-postgres.render.com/holddb_mrsd"
         )
     }
 
