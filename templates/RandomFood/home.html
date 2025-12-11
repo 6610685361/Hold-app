@@ -71,13 +71,13 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <label class="text-sm">Radius</label>
-            <select id="mapRadius" class="rounded px-2 py-1 border">
+            {% comment %} <label class="text-sm">Radius: 5 km</label> {% endcomment %}
+            {% comment %} <select id="mapRadius" class="rounded px-2 py-1 border">
               <option value="1000">1 km</option>
-              <option value="3000" selected>3 km</option>
+              <option value="3000">3 km</option>
               <option value="5000">5 km</option>
               <option value="10000">10 km</option>
-            </select>
+            </select> {% endcomment %}
 
             <label class="text-sm ml-2">Open now</label>
             <input id="mapOpenNow" type="checkbox" class="ml-1" />
@@ -127,8 +127,8 @@
   </section>
 </div>
 
-<!-- Load Google Maps JS - replace YOUR_API_KEY with your key -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places" async defer></script>
+<!-- Load Google Maps JS -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAXH76TxH5VKUfAafYmB0sTb3TSuKMC5qU&libraries=places" async defer></script>
 
 <script>
 /* -------------------------- existing app constants ------------------------- */
@@ -437,7 +437,7 @@ let markers = [];
 let infoWindow;
 const placesListEl = document.getElementById('placesList');
 const mapModalEl = document.getElementById('mapModal');
-const mapRadiusEl = document.getElementById('mapRadius');
+const mapRadiusEl = "5000"
 const mapOpenNowEl = document.getElementById('mapOpenNow');
 const mapPriceEl = document.getElementById('mapPrice');
 const mapSearchBtn = document.getElementById('mapSearchBtn');
