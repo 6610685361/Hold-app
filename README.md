@@ -11,6 +11,7 @@ https://hold-vn2e.onrender.com/
 - Works on mobile and desktop
 - Quick and fun decision-making experience
 - Save favorite meals
+- Show nearby restaurants with the selected food
 - Filter food by type (e.g., Thai, fast food, dessert)
 
 ## Members 
@@ -19,3 +20,6 @@ https://hold-vn2e.onrender.com/
 - Supakit Aussawawutthiroj 6610685338
 - Atipat Chungkajornkiat 686610685379
 - Pongsathorn Thongkliang 6610685254
+
+## Demo video
+https://youtu.be/M60Texj7DLY
