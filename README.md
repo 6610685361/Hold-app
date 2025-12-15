@@ -3,10 +3,27 @@
 This project is designed for users who struggle with meal decisions. The website provides random food suggestions, helping users quickly pick something to eat without overthinking.
 
 ## How to install this app
-  -Git clone this repo
-  Run these lines in bash
-  -pip install -r requirement
-  -python manage.py runserver
+### 1. Download the code
+git clone 
+
+### 2. Go into the folder 
+cd (your cloned folder)
+
+### 3. Create and turn on a virtual environment
+python -m venv venv
+#### Windows:
+venv\Scripts\activate
+#### Mac/Linux:
+source venv/bin/activate
+
+### 4. Install libraries 
+pip install -r requirements.txt
+
+### 5. Set up the database
+python manage.py migrate
+
+### 6. Run the server
+python manage.py runserver
 
 ## Our Website
 https://hold-vn2e.onrender.com/
