@@ -4,7 +4,7 @@ This project is designed for users who struggle with meal decisions. The website
 
 ## How to install this app
 ### 1. Download the code
-git clone 
+git clone this repo
 
 ### 2. Go into the folder 
 cd (your cloned folder)
