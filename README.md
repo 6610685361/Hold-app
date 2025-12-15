@@ -2,6 +2,12 @@
 
 This project is designed for users who struggle with meal decisions. The website provides random food suggestions, helping users quickly pick something to eat without overthinking.
 
+## How to install this app
+  -Git clone this repo
+  Run these lines in bash
+  -pip install -r requirement
+  -python manage.py runserver
+
 ## Our Website
 https://hold-vn2e.onrender.com/
 
